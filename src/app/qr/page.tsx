@@ -50,7 +50,7 @@ export default function QrLandingPage() {
                     </div>
 
                 </div>
-                <div className="relative w-full  min-h-screen md:w-3/4 z-10 w-full py-4 sm:py-6 overflow-y-auto">
+                <div className="relative w-full  min-h-screen md:w-3/4 z-10 py-4 sm:py-6 overflow-y-auto">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="col-span-1 sm:col-span-2 bg-gradient-to-r from-white via-gray-100 to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 rounded-2xl px-4 py-4 shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center gap-3 w-full">
                             <div className="relative w-full">

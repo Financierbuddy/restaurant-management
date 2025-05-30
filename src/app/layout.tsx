@@ -13,7 +13,6 @@ import Footer3 from '@/components/Footer3'
 import Footer4 from '@/components/Footer4'
 import { usePathname } from 'next/navigation'
 
-
 const poppins = Poppins({
 	subsets: ['latin'],
 	display: 'swap',

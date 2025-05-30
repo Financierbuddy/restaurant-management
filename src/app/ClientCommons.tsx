@@ -1,5 +1,4 @@
 'use client'
-
 import React, { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useThemeMode } from '@/utils/useThemeMode'
