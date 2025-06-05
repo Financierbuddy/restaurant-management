@@ -11,7 +11,7 @@ import ThemeProvider from './theme-provider'
 import Footer2 from '@/components/Footer2'
 import Footer3 from '@/components/Footer3'
 import Footer4 from '@/components/Footer4'
-import { usePathname } from 'next/navigation'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 const poppins = Poppins({
 	subsets: ['latin'],
@@ -40,6 +40,7 @@ export default function RootLayout({
 		<html lang="en" className={poppins.className}>
 			<ThemeProvider>
 				<body className="bg-white text-base text-neutral-900 dark:bg-neutral-900 dark:text-neutral-200">
+					<AuthProvider>
 					<div>
 						<div className='sticky top-0 z-50'>
 							<SiteHeader />
@@ -49,6 +50,7 @@ export default function RootLayout({
 						<Footer2 />
 					</div>
 					<ClientCommons />
+					</AuthProvider>
 				</body>
 			</ThemeProvider>
 		</html>

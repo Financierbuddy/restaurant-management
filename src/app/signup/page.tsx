@@ -1,15 +1,20 @@
-'use client'
-import React, { FC, useState, useEffect } from 'react'
-import facebookSvg from '@/images/Facebook.svg'
-import twitterSvg from '@/images/Twitter.svg'
-import googleSvg from '@/images/Google.svg'
-import Input from '@/shared/Input'
-import ButtonPrimary from '@/shared/ButtonPrimary'
-import Image from 'next/image'
-import Link from 'next/link'
-import T from '@/utils/getT'
+"use client"
+import React, { FC, useState, useEffect } from "react";
+import facebookSvg from "@/images/Facebook.svg";
+import twitterSvg from "@/images/Twitter.svg";
+import googleSvg from "@/images/Google.svg";
+import Input from "@/shared/Input";
+import ButtonPrimary from "@/shared/ButtonPrimary";
+import Image from "next/image";
+import Link from "next/link";
+import { useAuthAPI } from "@/hooks/useAuthAPI";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { ClientRegisterPayload, PartnerRegisterPayload, AdminRegisterPayload, mapLaravelUserToProfile } from "@/types/auth.types";
 
 export interface PageSignUpProps {}
+
+type UserRole = 'client' | 'partner' | 'admin';
 
 const loginSocials = [
 	{
@@ -27,7 +32,7 @@ const loginSocials = [
 		href: '#',
 		icon: googleSvg,
 	},
-]
+];
 
 const sliderImages = [
 	'https://images.unsplash.com/photo-1571896349842-33c89424de2d',
@@ -35,26 +40,26 @@ const sliderImages = [
 	'https://images.unsplash.com/photo-1544148103-0773bf10d330',
 	'https://images.unsplash.com/photo-1566073771259-6a8506099945',
 	'https://images.unsplash.com/photo-1565299585323-38d6b0865b47',
-]
+];
 
 const ImageSlider = () => {
-	const [currentIndex, setCurrentIndex] = useState(0)
+	const [currentIndex, setCurrentIndex] = useState(0);
 
 	// Auto-slide effect
 	useEffect(() => {
 		const interval = setInterval(() => {
 			setCurrentIndex((prevIndex) =>
 				prevIndex === sliderImages.length - 1 ? 0 : prevIndex + 1,
-			)
-		}, 5000)
+			);
+		}, 5000);
 
-		return () => clearInterval(interval)
-	}, [])
+		return () => clearInterval(interval);
+	}, []);
 
 	// Manual navigation
 	const goToSlide = (index: number) => {
-		setCurrentIndex(index)
-	}
+		setCurrentIndex(index);
+	};
 
 	return (
 		<div className="relative h-full w-full">
@@ -87,137 +92,320 @@ const ImageSlider = () => {
 				))}
 			</div>
 		</div>
-	)
-}
+	);
+};
 
 const PageSignUp: FC<PageSignUpProps> = ({}) => {
+	const router = useRouter();
+	const [userRole, setUserRole] = useState<UserRole>('client');
+	
+	const [formData, setFormData] = useState({
+		email: '',
+		password: '',
+		confirmPassword: '',
+		firstName: '',
+		lastName: '',
+		phoneNumber: '',
+		// Partner specific
+		companyName: '',
+		kvkNumber: '',
+		vatNumber: '',
+		// Admin specific
+		adminCode: '',
+		// Additional fields
+		termsAccepted: false,
+	});
+
+	// Use the new API hooks
+	const { registerClient, registerPartner, registerAdmin, loading, error, clearError } = useAuthAPI();
+	const { login: setAuthState, isAuthenticated } = useAuth();
+
+	// Redirect if already authenticated
+	useEffect(() => {
+		if (isAuthenticated) {
+			router.push("/account");
+		}
+	}, [isAuthenticated, router]);
+
+	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+		const { name, value, type } = e.target;
+		const checked = (e.target as HTMLInputElement).checked;
+		setFormData(prev => ({
+			...prev,
+			[name]: type === 'checkbox' ? checked : value
+		}));
+	};
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		clearError();
+
+		// Validation
+		if (formData.password !== formData.confirmPassword) {
+			alert('Passwords do not match');
+			return;
+		}
+
+		if (!formData.termsAccepted) {
+			alert('Please accept the terms and conditions');
+			return;
+		}
+
+		try {
+			let result = null;
+
+			if (userRole === 'client') {
+				const payload: ClientRegisterPayload = {
+					email: formData.email,
+					password: formData.password,
+					firstName: formData.firstName,
+					lastName: formData.lastName,
+					phoneNumber: formData.phoneNumber,
+				};
+				result = await registerClient(payload);
+			} else if (userRole === 'partner') {
+				const payload: PartnerRegisterPayload = {
+					email: formData.email,
+					password: formData.password,
+					firstName: formData.firstName,
+					lastName: formData.lastName,
+					phoneNumber: formData.phoneNumber,
+					companyName: formData.companyName,
+					kvkNumber: formData.kvkNumber,
+					vatNumber: formData.vatNumber,
+				};
+				result = await registerPartner(payload);
+			} else if (userRole === 'admin') {
+				const payload: AdminRegisterPayload = {
+					email: formData.email,
+					password: formData.password,
+					firstName: formData.firstName,
+					lastName: formData.lastName,
+					adminCode: formData.adminCode,
+				};
+				result = await registerAdmin(payload);
+			}
+
+			      if (result) {
+        console.log('Registration successful:', result);
+        
+        // If token is provided, log in the user automatically
+        if (result && typeof result === 'object' && 'token' in result && result.token) {
+          const userProfile = mapLaravelUserToProfile((result as any).user);
+          setAuthState((result as any).token, userProfile);
+          router.push("/account");
+        } else {
+          // Redirect to login if no token (email verification required)
+          alert('Registration successful! Please check your email and then log in.');
+          router.push("/login");
+        }
+      }
+		} catch (err) {
+			console.error('Registration failed:', err);
+		}
+	};
+
 	return (
-		<div className={`nc-PageSignUp min-h-screen w-full`}>
+		<div className={`nc-PageSignUp min-h-screen w-full bg-white dark:bg-neutral-900`}>
 			<div className="container relative flex min-h-screen items-center justify-center px-4 py-16">
-				<div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-lg shadow-2xl md:flex-row">
-					<div className="relative w-full overflow-hidden bg-blue-500 md:w-1/2">
+				<div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-xl md:flex-row">
+					<div className="relative w-full overflow-hidden md:w-1/2">
 						<ImageSlider />
-						<div className="absolute inset-0 flex flex-col justify-between p-10 text-white"></div>
+						<div className="absolute inset-0 bg-black/40 dark:bg-black/60"></div>
 					</div>
-					<div className="max-h-screen w-full overflow-auto bg-white p-8 md:w-1/2 md:p-10">
+					<div className="max-h-screen w-full overflow-auto bg-white dark:bg-neutral-800 p-8 md:w-1/2 md:p-10">
 						<div className="mx-auto max-w-md">
-							<div className="mb-8 space-y-2">
-								<p className="text-sm text-gray-600 sm:text-lg">Welcome !</p>
-								<h2 className="text-md font-medium text-blue-500 sm:text-xl">
+							<div className="mb-6 space-y-2">
+								<p className="text-sm text-neutral-500 dark:text-neutral-400">Welcome! 👋</p>
+								<h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
 									Create Account
 								</h2>
 							</div>
 
-							<h3 className="text-md mb-6 font-medium sm:text-xl">
-								<span className="text-blue-500">Sign Up</span> For Free
-							</h3>
-
-							<form className="space-y-5">
-								<div className="space-y-">
-									<input
-										type="text"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Title (Mr./Mrs./Ms.)"
-									/>
-								</div>
-
-								<div className="space-y-">
-									<input
-										type="text"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Full Name"
-									/>
-								</div>
-
-								<div className="space-y-">
-									<input
-										type="email"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Email Address"
-									/>
-								</div>
-
-								<div className="space-y-">
-									<input
-										type="tel"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Phone Number"
-									/>
-								</div>
-
-								<div className="space-y-">
-									<input
-										type="text"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="City"
-									/>
-								</div>
-
+							{/* Role Selection */}
+							<div className="mb-6">
+								<label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+									Account Type
+								</label>
 								<select
-									defaultValue=""
-									className="w-full border-0 border-b-2 border-blue-500 pb-2 text-gray-500 outline-none focus:border-blue-500 focus:ring-0"
+									value={userRole}
+									onChange={(e) => setUserRole(e.target.value as UserRole)}
+									className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white pb-2"
 								>
-									<option value="" disabled>
-										Gender
-									</option>
-									<option value="male">Male</option>
-									<option value="female">Female</option>
-									<option value="other">Other</option>
-									<option value="prefer">Prefer not to say</option>
+									<option value="client">Client Account</option>
+									<option value="partner">Partner/Business Account</option>
+									<option value="admin">Admin Account</option>
 								</select>
+							</div>
 
-								<div className="space-y-">
+							<form onSubmit={handleSubmit} className="space-y-6">
+								{/* Basic Information */}
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 									<input
-										type="password"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Password"
+										type="text"
+										name="firstName"
+										value={formData.firstName}
+										onChange={handleChange}
+										placeholder="First Name"
+										required
+										className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+									/>
+									<input
+										type="text"
+										name="lastName"
+										value={formData.lastName}
+										onChange={handleChange}
+										placeholder="Last Name"
+										required
+										className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
 									/>
 								</div>
 
-								<div className="space-y-">
+								<input
+									type="email"
+									name="email"
+									value={formData.email}
+									onChange={handleChange}
+									placeholder="Email Address"
+									required
+									className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+								/>
+
+								<input
+									type="tel"
+									name="phoneNumber"
+									value={formData.phoneNumber}
+									onChange={handleChange}
+									placeholder="Phone Number"
+									required
+									className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+								/>
+
+								{/* Partner-specific fields */}
+								{userRole === 'partner' && (
+									<>
+										<input
+											type="text"
+											name="companyName"
+											value={formData.companyName}
+											onChange={handleChange}
+											placeholder="Company Name"
+											required
+											className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+										/>
+										<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+											<input
+												type="text"
+												name="kvkNumber"
+												value={formData.kvkNumber}
+												onChange={handleChange}
+												placeholder="KvK Number"
+												required
+												className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+											/>
+											<input
+												type="text"
+												name="vatNumber"
+												value={formData.vatNumber}
+												onChange={handleChange}
+												placeholder="VAT Number"
+												required
+												className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+											/>
+										</div>
+									</>
+								)}
+
+								{/* Admin-specific fields */}
+								{userRole === 'admin' && (
 									<input
 										type="password"
-										className="w-full border-0 border-b-2 border-blue-500 pb-2 outline-none focus:border-blue-500 focus:ring-0"
-										placeholder="Confirm Password"
+										name="adminCode"
+										value={formData.adminCode}
+										onChange={handleChange}
+										placeholder="Admin Code"
+										required
+										className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
 									/>
-								</div>
+								)}
 
-								<div className="mt-3 flex items-center">
+								<input
+									type="password"
+									name="password"
+									value={formData.password}
+									onChange={handleChange}
+									placeholder="Password"
+									required
+									className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+								/>
+
+								<input
+									type="password"
+									name="confirmPassword"
+									value={formData.confirmPassword}
+									onChange={handleChange}
+									placeholder="Confirm Password"
+									required
+									className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
+								/>
+
+								{error && (
+									<div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md text-center">
+										{error}
+									</div>
+								)}
+
+								{/* Terms and Conditions */}
+								<div className="flex items-center">
 									<input
 										type="checkbox"
-										id="terms"
-										className="h-4 w-4 border-gray-300 text-blue-500"
+										name="termsAccepted"
+										checked={formData.termsAccepted}
+										onChange={handleChange}
+										className="accent-blue-500 mr-2"
+										required
 									/>
-									<label
-										htmlFor="terms"
-										className="ml-2 text-xs text-gray-600 sm:text-sm"
-									>
-										I agree to the Terms and Privacy Policy
-									</label>
+									                  <label className="text-xs text-neutral-500 dark:text-neutral-400">
+                    I agree to the{" "}
+                    <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Terms and Conditions
+                    </a>{" "}
+                    and{" "}
+                    <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Privacy Policy
+                    </a>
+                  </label>
 								</div>
 
-								<ButtonPrimary
-									type="submit"
-									className="mt-5 w-full rounded bg-blue-500 py-3 font-medium text-white hover:bg-blue-600"
-								>
-									SIGN UP
+								<ButtonPrimary className="w-full mt-4" disabled={loading}>
+									{loading ? "Creating Account..." : "CREATE ACCOUNT"}
 								</ButtonPrimary>
 
-								<div className="text-center text-sm text-gray-600">
-									<span>
-										Already have an account?{' '}
-										<Link href="/login" className="font-medium text-blue-500">
-											Sign In
-										</Link>
-									</span>
+								<div className="pt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+									Already have an account?{" "}
+									<Link href="/login" className="text-blue-600 dark:text-blue-400 font-medium">
+										Sign In
+									</Link>
 								</div>
 							</form>
+
+							{/* Test API Link */}
+							<div className="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+								<div className="text-center">
+									<Link 
+										href="/test-api" 
+										className="text-xs text-neutral-400 dark:text-neutral-500 hover:text-blue-500 dark:hover:text-blue-400"
+									>
+										🧪 Test API Integration
+									</Link>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 		</div>
-	)
-}
+	);
+};
 
-export default PageSignUp
+export default PageSignUp;

@@ -7,8 +7,10 @@ import ButtonPrimary from "@/shared/ButtonPrimary";
 import facebookSvg from "@/images/Facebook.svg";
 import twitterSvg from "@/images/Twitter.svg";
 import googleSvg from "@/images/Google.svg";
-import { loginAdmin } from "@/hooks/apis/useAuth";
+import { useAuthAPI } from "@/hooks/useAuthAPI";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { mapLaravelUserToProfile } from "@/types/auth.types";
 
 const loginSocials = [
   { name: "Continue with Facebook", href: "#", icon: facebookSvg },
@@ -66,21 +68,57 @@ const PageLogin: FC = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Use the new API hooks
+  const { login, loading, error, clearError } = useAuthAPI();
+  const { login: setAuthState, isAuthenticated } = useAuth();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/account");
+    }
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
+    clearError();
+
+    console.log('🔐 Login attempt started with:', { email, password: password ? '***' : 'empty' });
+
     try {
-      const res = await loginAdmin({ email, password });
-      localStorage.setItem("token", res.token);
-      router.push("/account"); 
-    } catch (error: any) {
-      setErrorMsg(error.message);
-    } finally {
-      setLoading(false);
+      const result = await login({ email, password });
+      console.log('🔐 Raw login result:', result);
+      
+      if (result) {
+        // Map Laravel user response to UserProfile format
+        const userProfile = mapLaravelUserToProfile(result.user);
+        console.log('🔐 Laravel user:', result.user);
+        console.log('🔐 Mapped user profile:', userProfile);
+        console.log('🔐 Token received:', result.token);
+        
+        // Set authentication state in context
+        setAuthState(result.token, userProfile);
+        console.log('🔐 Auth state set in context');
+        
+        // Check if token was stored in cookies
+        const storedToken = require('js-cookie').get('token');
+        console.log('🔐 Token stored in cookies:', storedToken ? 'YES' : 'NO');
+        
+        // Show success message
+        console.log('🔐 Login successful, redirecting...');
+        
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          router.push("/account");
+        }, 100);
+      } else {
+        console.error('🔐 Login result was null or undefined');
+      }
+    } catch (err) {
+      // Error is handled by the hook
+      console.error('🔐 Login failed:', err);
     }
   };
 
@@ -123,13 +161,20 @@ const PageLogin: FC = () => {
                   className="w-full bg-transparent border-b-2 border-neutral-300 dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-0 text-neutral-800 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 pb-2"
                 />
 
-                {errorMsg && (
-                  <div className="text-sm text-red-500 text-center">{errorMsg}</div>
+                {error && (
+                  <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md text-center">
+                    {error}
+                  </div>
                 )}
 
                 <div className="flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" className="accent-blue-500" />
+                    <input 
+                      type="checkbox" 
+                      className="accent-blue-500"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
                     Remember Me
                   </label>
                   <Link href="/" className="hover:text-blue-500 dark:hover:text-blue-400">
@@ -148,6 +193,18 @@ const PageLogin: FC = () => {
                   </Link>
                 </div>
               </form>
+
+              {/* Test API Link */}
+              <div className="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+                <div className="text-center">
+                  <Link 
+                    href="/test-api" 
+                    className="text-xs text-neutral-400 dark:text-neutral-500 hover:text-blue-500 dark:hover:text-blue-400"
+                  >
+                    🧪 Test API Integration
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
